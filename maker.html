@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>매뉴얼 메이커 V13 - 되돌리기 탑재</title>
+    <style>
+        body { font-family: 'Malgun Gothic', sans-serif; display: flex; height: 100vh; margin: 0; background: #eee; overflow: hidden; }
+        
+        #slide-panel { width: 160px; background: #2c3e50; border-right: 1px solid #1a252f; display: flex; flex-direction: column; overflow-y: auto; padding: 10px 0; z-index: 20; }
+        .thumb-wrap { position: relative; padding: 10px; margin: 0 10px 10px 10px; background: #34495e; border-radius: 6px; cursor: pointer; border: 2px solid transparent; transition: 0.2s; }
+        .thumb-wrap.active { border-color: #3498db; background: #2980b9; }
+        .thumb-wrap:hover { background: #3b536a; }
+        .thumb-num { position: absolute; top: 2px; left: 5px; color: white; font-size: 11px; font-weight: bold; }
+        .thumb-img { width: 100%; height: 70px; object-fit: contain; background: #fff; border-radius: 3px; pointer-events: none; margin-top: 10px; }
+        .thumb-del { position: absolute; top: 5px; right: 5px; background: #e74c3c; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 10px; cursor: pointer; display: none; }
+        .thumb-wrap:hover .thumb-del { display: block; }
+        
+        #sidebar { width: 340px; background: white; padding: 20px; box-shadow: 2px 0 5px rgba(0,0,0,0.1); display: flex; flex-direction: column; z-index: 10; overflow-y: auto; }
+        
+        .title-input { width: 100%; padding: 10px; font-size: 16px; font-weight: bold; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; margin-bottom: 15px; }
+        
+        .save-load-row { display: flex; gap: 8px; margin-bottom: 15px; }
+        .btn-gray { flex: 1; padding: 8px; font-size: 12px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn-gray:hover { background: #5a6268; }
+        
+        #drop-zone { border: 2px dashed #007BFF; padding: 15px; text-align: center; border-radius: 8px; background: #f8f9fa; cursor: pointer; margin-bottom: 15px; font-size: 13px; }
+        #drop-zone:hover { background: #e2e6ea; }
+        input[type="file"] { display: none; }
+        
+        /* 그리기(블러/펜) 툴바 */
+        .draw-tools { background: #f8f9fa; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin-bottom: 15px; }
+        .pen-btn-row { display: flex; gap: 4px; margin-bottom: 8px; }
+        .pen-btn { flex: 1; padding: 6px 2px; font-size: 11px; border: 1px solid #ccc; border-radius: 4px; background: white; cursor: pointer; font-weight: bold; }
+        .pen-btn.active-pen { border: 2px solid #333; background: #e9ecef; }
+        #pen-width-container { display: none; align-items: center; gap: 8px; margin-bottom: 5px; }
+        
+        textarea { width: 100%; height: 90px; margin-bottom: 15px; padding: 10px; box-sizing: border-box; resize: none; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding: 10px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        
+        .export-row { display: flex; gap: 8px; margin-top: auto; }
+        .btn-green { flex: 1; background: #28A745; color: white; font-size: 14px; padding: 12px 5px; }
+        .btn-green:hover { background: #218838; }
+        .btn-red { flex: 1; background: #dc3545; color: white; font-size: 14px; padding: 12px 5px; }
+        .btn-red:hover { background: #c82333; }
+        
+        .step-info { background: #e9ecef; padding: 8px; border-radius: 5px; margin-bottom: 10px; text-align: center; font-weight: bold; color: #333; font-size: 13px; }
+        
+        #preview-area { flex: 1; position: relative; background: #222; display: flex; justify-content: center; align-items: center; overflow: hidden; padding: 40px; }
+        
+        #img-container { position: relative; display: inline-block; width: 100%; box-shadow: 0 5px 20px rgba(0,0,0,0.5); user-select: none; }
+        #preview-img { width: 100%; display: block; pointer-events: none; background: white; }
+        
+        #img-resize-handle {
+            position: absolute; right: -15px; bottom: -15px; width: 34px; height: 34px; 
+            background: #007BFF; color: white; border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.4);
+            display: flex; justify-content: center; align-items: center; font-size: 18px; font-weight: bold;
+            cursor: nwse-resize; z-index: 5; transition: transform 0.1s;
+        }
+        #img-resize-handle:hover { transform: scale(1.15); background: #0056b3; }
+
+        #empty-msg { position: absolute; color: white; font-size: 20px; font-weight: bold; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+
+        #draw-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: crosshair; z-index: 10; }
+        #live-draw-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 15; }
+
+        .hotspot { position: absolute; border: 3px solid #FF4444; background: rgba(255,68,68,0.2); cursor: move; box-sizing: border-box; }
+        .hotspot.active { border-color: #007BFF; background: rgba(0,123,255,0.25); outline: 2px dashed rgba(255,255,255,0.8); }
+        .hs-delete { position: absolute; top: -14px; right: -14px; background: #e74c3c; color: white; border-radius: 50%; width: 24px; height: 24px; font-size: 12px; font-weight: bold; display: none; justify-content: center; align-items: center; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
+        .hs-resize { position: absolute; bottom: -8px; right: -8px; background: #007BFF; border: 2px solid white; width: 16px; height: 16px; border-radius: 50%; cursor: nwse-resize; display: none; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
+        .hotspot.active .hs-delete, .hotspot.active .hs-resize { display: flex; }
+
+        body.is-dragging .hs-delete, body.is-dragging .hs-resize { display: none !important; }
+        body.is-drawing * { cursor: crosshair !important; }
+        body.is-drawing-pen #draw-layer { cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>') 8 8, crosshair !important; }
+    </style>
+</head>
+<body>
+
+    <div id="slide-panel">
+        <div style="color:#aaa; font-size:11px; text-align:center; margin-bottom:10px;">드래그해서 순서 변경</div>
+        <div id="thumb-container"></div>
+    </div>
+
+    <div id="sidebar">
+        <input type="text" id="project-title" class="title-input" value="업무포털_가이드" placeholder="파일 제목을 입력하세요">
+        
+        <div class="save-load-row">
+            <button class="btn-gray" onclick="saveProject()">💾 중간 저장</button>
+            <button class="btn-gray" onclick="document.getElementById('load-input').click()">📂 이어하기</button>
+            <input type="file" id="load-input" accept=".json" style="display:none;" onchange="loadProject(event)">
+        </div>
+        
+        <div id="drop-zone" onclick="document.getElementById('file-input').click()">
+            📁 사진 추가하기<br><span style="font-size:11px; color:#888;">(현재 화면의 바로 뒤에 추가됩니다)</span>
+        </div>
+        <input type="file" id="file-input" multiple accept="image/*">
+        
+        <div class="draw-tools">
+            <div style="font-size:11px; color:#555; font-weight:bold; margin-bottom:5px;">보안 가리기 (펜/블러)</div>
+            <div class="pen-btn-row">
+                <button class="pen-btn" onclick="setPen('#FF0000', this)">🔴 빨강</button>
+                <button class="pen-btn" onclick="setPen('#000000', this)">⚫ 검정</button>
+                <button class="pen-btn" onclick="setPen('#007BFF', this)">🔵 파랑</button>
+                <button class="pen-btn" onclick="setPen('blur', this)">🌫️ 블러</button>
+                <button class="pen-btn active-pen" onclick="setPen(null, this)" style="background:#e9ecef;">끄기</button>
+            </div>
+            <div id="pen-width-container">
+                <span style="font-size:11px; font-weight:bold;">굵기</span>
+                <input type="range" id="pen-width" min="5" max="60" value="20" style="flex:1;">
+            </div>
+            
+            <div style="display:flex; gap:5px; margin-top:5px;">
+                <button class="btn-gray" style="flex:1; padding:5px; margin:0; background:#e74c3c;" onclick="undoDrawing()">↩️ 펜 되돌리기</button>
+                <button class="btn-gray" style="flex:1; padding:5px; margin:0;" onclick="resetDrawing()">🧹 모두 지우기</button>
+            </div>
+        </div>
+
+        <div class="step-info" id="step-info">현재 화면: 0 / 0</div>
+
+        <p style="font-size:12px; color:#666; font-weight:bold; margin-bottom:5px;">화면 설명</p>
+        <textarea id="step-desc" placeholder="설명을 적어주세요."></textarea>
+        
+        <div class="export-row">
+            <button class="btn-green" onclick="exportHTML()">🌐 웹용 (HTML)</button>
+            <button class="btn-red" onclick="exportPDF()">📄 문서용 (PDF)</button>
+        </div>
+    </div>
+
+    <div id="preview-area">
+        <div id="empty-msg">👈 왼쪽에서 사진을 추가하거나<br>저장한 파일을 불러오세요.</div>
+        <div id="img-container" style="display: none;">
+            <img id="preview-img" src="">
+            <canvas id="live-draw-canvas"></canvas>
+            <div id="draw-layer"></div>
+            <div id="img-resize-handle" title="사진 크기 조절">⤡</div>
+        </div>
+    </div>
+
+<script>
+    let steps = [];
+    let currentIdx = 0;
+    let dragStartIndex = -1;
+    let mode = null; 
+    let activeHsIdx = -1; 
+    let startX = 0, startY = 0;
+    let initialHsX, initialHsY, initialHsW, initialHsH;
+
+    let currentPen = null;
+    let drawPath = [];
+    let currentImgObj = new Image(); 
+    const liveCanvas = document.getElementById('live-draw-canvas');
+    const liveCtx = liveCanvas.getContext('2d');
+
+    const fileInput = document.getElementById('file-input');
+    const dropZone = document.getElementById('drop-zone');
+    const thumbContainer = document.getElementById('thumb-container');
+    const previewImg = document.getElementById('preview-img');
+    const imgContainer = document.getElementById('img-container');
+    const drawLayer = document.getElementById('draw-layer');
+    const descInput = document.getElementById('step-desc');
+    const stepInfo = document.getElementById('step-info');
+    const emptyMsg = document.getElementById('empty-msg');
+    const imgResizeHandle = document.getElementById('img-resize-handle');
+    const previewArea = document.getElementById('preview-area');
+    const titleInput = document.getElementById('project-title');
+
+    function setPen(color, btn) {
+        currentPen = color;
+        document.querySelectorAll('.pen-btn').forEach(b => b.classList.remove('active-pen'));
+        btn.classList.add('active-pen');
+        document.getElementById('pen-width-container').style.display = color ? 'flex' : 'none';
+        
+        if(color) {
+            document.body.classList.add('is-drawing-pen');
+            activeHsIdx = -1; 
+            drawBoxes();
+        } else {
+            document.body.classList.remove('is-drawing-pen');
+        }
+    }
+
+    // 💡 추가됨: 되돌리기 기능 (가장 최근 선 1개 지우기)
+    function undoDrawing() {
+        if(steps.length === 0) return;
+        const step = steps[currentIdx];
+        if(step.drawings && step.drawings.length > 0) {
+            step.drawings.pop(); // 마지막 기록 삭제
+            updateCompositeImage(); // 이미지 재합성
+        } else {
+            alert("지울 펜/블러가 없습니다.");
+        }
+    }
+
+    // 💡 추가됨: 모두 지우기 기능 (원본으로 초기화)
+    function resetDrawing() {
+        if(steps.length === 0) return;
+        const step = steps[currentIdx];
+        if(step.drawings && step.drawings.length > 0) {
+            if(confirm("이 화면의 펜/블러를 모두 지우시겠습니까? (네모는 유지됩니다)")) {
+                step.drawings = [];
+                updateCompositeImage();
+            }
+        }
+    }
+
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.background = '#d6d8db'; });
+    dropZone.addEventListener('dragleave', () => { dropZone.style.background = '#f8f9fa'; });
+    dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.style.background = '#f8f9fa'; handleFiles(e.dataTransfer.files); });
+    fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+    function handleFiles(files) {
+        const fileArray = Array.from(files);
+        if(fileArray.length === 0) return;
+        
+        let newSteps = [];
+        let loadedCount = 0;
+        const insertPos = steps.length === 0 ? 0 : currentIdx + 1;
+
+        fileArray.forEach((file, index) => {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                // 💡 되돌리기용 데이터 구조 추가 (originalImage, drawings)
+                newSteps[index] = { 
+                    originalImage: event.target.result,
+                    image: event.target.result, 
+                    desc: '', 
+                    scale: 100, 
+                    hotspots: [],
+                    drawings: [] // 펜/블러 기록 저장소
+                };
+                loadedCount++;
+                if(loadedCount === fileArray.length) { 
+                    steps.splice(insertPos, 0, ...newSteps);
+                    currentIdx = insertPos; 
+                    activeHsIdx = -1; 
+                    renderThumbnails();
+                    renderStep(); 
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+        fileInput.value = '';
+    }
+
+    function renderThumbnails() {
+        thumbContainer.innerHTML = '';
+        steps.forEach((step, index) => {
+            const thumb = document.createElement('div');
+            thumb.className = 'thumb-wrap' + (index === currentIdx ? ' active' : '');
+            thumb.draggable = true;
+            thumb.innerHTML = `<div class="thumb-num">${index + 1}</div><img class="thumb-img" src="${step.image}"><button class="thumb-del" onclick="deleteStep(${index}, event)">X</button>`;
+            thumb.onclick = () => { currentIdx = index; activeHsIdx = -1; renderThumbnails(); renderStep(); };
+            thumb.ondragstart = (e) => { dragStartIndex = index; e.dataTransfer.effectAllowed = 'move'; };
+            thumb.ondragover = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; };
+            thumb.ondrop = (e) => {
+                e.preventDefault();
+                if (dragStartIndex === index) return;
+                const item = steps.splice(dragStartIndex, 1)[0];
+                steps.splice(index, 0, item);
+                currentIdx = index;
+                activeHsIdx = -1;
+                renderThumbnails();
+                renderStep();
+            };
+            thumbContainer.appendChild(thumb);
+        });
+    }
+
+    function deleteStep(index, event) {
+        event.stopPropagation();
+        if(confirm(`${index + 1}번째 슬라이드를 삭제하시겠습니까?`)) {
+            steps.splice(index, 1);
+            if(currentIdx >= steps.length) currentIdx = Math.max(0, steps.length - 1);
+            activeHsIdx = -1;
+            renderThumbnails();
+            renderStep();
+        }
+    }
+
+    function renderStep() {
+        if(steps.length === 0) {
+            emptyMsg.style.display = 'flex';
+            imgContainer.style.display = 'none';
+            stepInfo.innerText = `현재 화면: 0 / 0`;
+            descInput.value = '';
+            return;
+        }
+        emptyMsg.style.display = 'none';
+        imgContainer.style.display = 'inline-block';
+        const step = steps[currentIdx];
+        
+        previewImg.src = step.image;
+        currentImgObj.src = step.originalImage; // 원본 이미지 캐시 유지
+        
+        descInput.value = step.desc;
+        stepInfo.innerText = `현재 화면: ${currentIdx + 1} / ${steps.length}`;
+        imgContainer.style.width = step.scale + '%';
+        drawBoxes();
+    }
+
+    function drawBoxes() {
+        drawLayer.innerHTML = '';
+        if(!steps[currentIdx]) return;
+        steps[currentIdx].hotspots.forEach((hs, idx) => {
+            if(hs.w === 0 || hs.h === 0) return;
+            const box = document.createElement('div');
+            box.className = 'hotspot' + (idx === activeHsIdx ? ' active' : '');
+            box.dataset.index = idx; 
+            box.style.left = hs.x + '%'; 
+            box.style.top = hs.y + '%';
+            box.style.width = hs.w + '%'; 
+            box.style.height = hs.h + '%';
+            
+            const delBtn = document.createElement('div');
+            delBtn.className = 'hs-delete';
+            delBtn.innerHTML = 'X';
+            const resizeBtn = document.createElement('div');
+            resizeBtn.className = 'hs-resize';
+            
+            box.appendChild(delBtn);
+            box.appendChild(resizeBtn);
+            drawLayer.appendChild(box);
+        });
+    }
+
+    descInput.oninput = (e) => steps[currentIdx].desc = e.target.value;
+
+    imgResizeHandle.onmousedown = (e) => {
+        if(steps.length === 0 || currentPen) return;
+        mode = 'resize_img';
+        activeHsIdx = -1;
+        document.body.classList.add('is-dragging');
+        drawBoxes();
+        e.stopPropagation();
+    };
+
+    imgContainer.onmousedown = (e) => {
+        if(steps.length === 0) return;
+        const rect = drawLayer.getBoundingClientRect();
+        
+        if (currentPen) {
+            mode = 'drawing_pen';
+            liveCanvas.width = liveCanvas.clientWidth;
+            liveCanvas.height = liveCanvas.clientHeight;
+            liveCtx.clearRect(0,0, liveCanvas.width, liveCanvas.height);
+            
+            let pX = e.clientX - rect.left;
+            let pY = e.clientY - rect.top;
+            drawPath = [{ x: (pX/rect.width)*100, y: (pY/rect.height)*100 }];
+            
+            liveCtx.beginPath();
+            liveCtx.moveTo(pX, pY);
+            liveCtx.lineCap = 'round';
+            liveCtx.lineJoin = 'round';
+            liveCtx.lineWidth = document.getElementById('pen-width').value;
+            liveCtx.strokeStyle = currentPen === 'blur' ? 'rgba(100,100,100,0.6)' : currentPen;
+            e.stopPropagation();
+            return;
+        }
+
+        if (e.target.classList.contains('hs-delete')) {
+            const idx = parseInt(e.target.parentElement.dataset.index);
+            steps[currentIdx].hotspots.splice(idx, 1);
+            activeHsIdx = -1;
+            drawBoxes();
+            return;
+        }
+        if (e.target.classList.contains('hs-resize')) {
+            mode = 'resize_box';
+            activeHsIdx = parseInt(e.target.parentElement.dataset.index);
+            const hs = steps[currentIdx].hotspots[activeHsIdx];
+            initialHsW = hs.w; initialHsH = hs.h;
+            startX = ((e.clientX - rect.left) / rect.width) * 100;
+            startY = ((e.clientY - rect.top) / rect.height) * 100;
+            document.body.classList.add('is-dragging'); 
+            e.stopPropagation();
+            return;
+        }
+        if (e.target.classList.contains('hotspot')) {
+            mode = 'move_box';
+            activeHsIdx = parseInt(e.target.dataset.index);
+            const hs = steps[currentIdx].hotspots[activeHsIdx];
+            initialHsX = hs.x; initialHsY = hs.y;
+            startX = ((e.clientX - rect.left) / rect.width) * 100;
+            startY = ((e.clientY - rect.top) / rect.height) * 100;
+            document.body.classList.add('is-dragging'); 
+            drawBoxes(); 
+            e.stopPropagation();
+            return;
+        }
+
+        mode = 'draw';
+        activeHsIdx = steps[currentIdx].hotspots.length; 
+        startX = ((e.clientX - rect.left) / rect.width) * 100;
+        startY = ((e.clientY - rect.top) / rect.height) * 100;
+        document.body.classList.add('is-drawing', 'is-dragging'); 
+        steps[currentIdx].hotspots.push({x: startX, y: startY, w: 0, h: 0});
+        drawBoxes();
+    };
+
+    window.onmousemove = (e) => {
+        if (!mode) return;
+        
+        if (mode === 'drawing_pen') {
+            const rect = drawLayer.getBoundingClientRect();
+            let pX = e.clientX - rect.left;
+            let pY = e.clientY - rect.top;
+            drawPath.push({ x: (pX/rect.width)*100, y: (pY/rect.height)*100 });
+            liveCtx.lineTo(pX, pY);
+            liveCtx.stroke();
+            return;
+        }
+
+        if (mode === 'resize_img') {
+            const areaRect = previewArea.getBoundingClientRect();
+            const containerLeft = imgContainer.getBoundingClientRect().left;
+            let newScale = ((e.clientX - containerLeft) / areaRect.width) * 100;
+            newScale = Math.max(15, Math.min(100, newScale));
+            steps[currentIdx].scale = newScale;
+            imgContainer.style.width = newScale + '%';
+            return;
+        }
+        const rect = drawLayer.getBoundingClientRect();
+        let currentX = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+        let currentY = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
+        const hs = steps[currentIdx].hotspots[activeHsIdx];
+
+        if (mode === 'draw') {
+            hs.x = Math.min(startX, currentX);
+            hs.y = Math.min(startY, currentY);
+            hs.w = Math.abs(currentX - startX);
+            hs.h = Math.abs(currentY - startY);
+            drawBoxes();
+        }
+        else if (mode === 'move_box') {
+            let dx = currentX - startX;
+            let dy = currentY - startY;
+            hs.x = Math.max(0, Math.min(100 - hs.w, initialHsX + dx));
+            hs.y = Math.max(0, Math.min(100 - hs.h, initialHsY + dy));
+            drawBoxes();
+        }
+        else if (mode === 'resize_box') {
+            let dx = currentX - startX;
+            let dy = currentY - startY;
+            hs.w = Math.max(1, Math.min(100 - hs.x, initialHsW + dx));
+            hs.h = Math.max(1, Math.min(100 - hs.y, initialHsH + dy));
+            drawBoxes();
+        }
+    };
+
+    window.onmouseup = () => {
+        if (mode === 'drawing_pen') {
+            if (drawPath.length > 1) {
+                // 원본 크기 대비 선 굵기 비율 계산
+                const widthRatio = (currentImgObj.naturalWidth || currentImgObj.width) / drawLayer.getBoundingClientRect().width;
+                const pxWidth = document.getElementById('pen-width').value * widthRatio;
+                
+                steps[currentIdx].drawings.push({
+                    pen: currentPen,
+                    pxWidth: pxWidth,
+                    path: drawPath
+                });
+                updateCompositeImage();
+            }
+            liveCtx.clearRect(0,0, liveCanvas.width, liveCanvas.height);
+            mode = null;
+            return;
+        }
+
+        if (mode === 'draw') {
+            const hs = steps[currentIdx].hotspots[activeHsIdx];
+            if (hs && hs.w < 1 && hs.h < 1) {
+                steps[currentIdx].hotspots.splice(activeHsIdx, 1);
+                activeHsIdx = -1;
+            }
+        }
+        mode = null;
+        document.body.classList.remove('is-drawing', 'is-dragging'); 
+        if(steps.length > 0) drawBoxes();
+    };
+
+    // 💡 추가됨: 그리기 기록(drawings)을 바탕으로 이미지를 재구성하는 핵심 함수
+    function updateCompositeImage() {
+        const step = steps[currentIdx];
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+        
+        img.onload = () => {
+            canvas.width = img.naturalWidth || img.width;
+            canvas.height = img.naturalHeight || img.height;
+            ctx.drawImage(img, 0, 0);
+
+            // 기록된 모든 선을 다시 그리기 (되돌리기 시 마지막 선만 빼고 그림)
+            step.drawings.forEach(d => {
+                const pxPath = d.path.map(p => ({
+                    x: (p.x / 100) * canvas.width,
+                    y: (p.y / 100) * canvas.height
+                }));
+                
+                if (d.pen === 'blur') {
+                    const tempC = document.createElement('canvas');
+                    tempC.width = canvas.width; tempC.height = canvas.height;
+                    const tCtx = tempC.getContext('2d');
+                    tCtx.beginPath();
+                    tCtx.moveTo(pxPath[0].x, pxPath[0].y);
+                    pxPath.forEach(p => tCtx.lineTo(p.x, p.y));
+                    tCtx.lineCap = 'round'; tCtx.lineJoin = 'round';
+                    tCtx.lineWidth = d.pxWidth;
+                    tCtx.strokeStyle = 'black';
+                    tCtx.stroke();
+
+                    tCtx.globalCompositeOperation = 'source-in';
+                    tCtx.filter = 'blur(15px)';
+                    tCtx.drawImage(img, 0, 0);
+                    ctx.drawImage(tempC, 0, 0);
+                } else {
+                    ctx.beginPath();
+                    ctx.moveTo(pxPath[0].x, pxPath[0].y);
+                    pxPath.forEach(p => ctx.lineTo(p.x, p.y));
+                    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+                    ctx.lineWidth = d.pxWidth;
+                    ctx.strokeStyle = d.pen;
+                    ctx.stroke();
+                }
+            });
+            
+            // 합성된 이미지를 화면에 즉시 반영
+            step.image = canvas.toDataURL('image/jpeg', 0.9);
+            document.getElementById('preview-img').src = step.image;
+        };
+        img.src = step.originalImage;
+    }
+
+    function saveProject() {
+        if(steps.length === 0) { alert("저장할 내용이 없습니다. 사진을 먼저 올려주세요."); return; }
+        const title = titleInput.value.trim() || '매뉴얼';
+        const dataStr = JSON.stringify(steps);
+        const blob = new Blob([dataStr], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${title}(작업중).json`;
+        link.click();
+    }
+
+    // 💡 과거 버전(V8~V12)에서 저장한 파일 완벽 호환 패치
+    function loadProject(event) {
+        const file = event.target.files[0];
+        if(!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                steps = JSON.parse(e.target.result);
+                // 구버전 파일 불러왔을 때 에러 안 나게 안전장치 추가
+                steps.forEach(s => {
+                    if (!s.originalImage) s.originalImage = s.image;
+                    if (!s.drawings) s.drawings = [];
+                });
+                currentIdx = 0;
+                activeHsIdx = -1;
+                renderThumbnails();
+                renderStep();
+                alert("작업을 성공적으로 불러왔습니다!");
+            } catch(error) {
+                alert("파일을 읽는 중 오류가 발생했습니다.");
+            }
+        };
+        reader.readAsText(file);
+        event.target.value = '';
+    }
+
+    function exportPDF() {
+        if(steps.length === 0) { alert("출력할 내용이 없습니다!"); return; }
+        const title = titleInput.value.trim() || '매뉴얼 문서';
+        let printWin = window.open('', '_blank');
+        let htmlContent = `
+        <!DOCTYPE html>
+        <html lang="ko">
+        <head>
+            <meta charset="UTF-8">
+            <title>${title}</title>
+            <style>
+                body { font-family: 'Malgun Gothic', sans-serif; margin: 0; padding: 20px; background: #fff; color: #333; }
+                .step-container { margin-bottom: 50px; page-break-inside: avoid; page-break-after: always; display: flex; flex-direction: column; align-items: center; }
+                .step-header { width: 100%; border-bottom: 2px solid #007BFF; padding-bottom: 10px; margin-bottom: 20px; font-size: 24px; font-weight: bold; color: #007BFF; }
+                .img-wrapper { position: relative; display: inline-block; box-shadow: 0 4px 10px rgba(0,0,0,0.1); border: 1px solid #ddd; padding: 5px; background: #fff; }
+                img { max-width: 100%; height: auto; display: block; }
+                .hotspot { position: absolute; border: 3px solid #FF4444 !important; background: rgba(255,68,68,0.15) !important; box-sizing: border-box; }
+                .desc-box { width: 100%; margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 8px; font-size: 18px; line-height: 1.6; border-left: 5px solid #007BFF; box-sizing: border-box; white-space: pre-wrap; }
+                @media print {
+                    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                    .hotspot { background: transparent !important; border: 3px solid #FF4444 !important; }
+                    .img-wrapper { box-shadow: none !important; border: none !important; }
+                }
+            </style>
+        </head>
+        <body>`;
+
+        steps.forEach((step, i) => {
+            htmlContent += `
+            <div class="step-container">
+                <div class="step-header">STEP ${i + 1}</div>
+                <div class="img-wrapper" style="width: ${step.scale}%">
+                    <img src="${step.image}">`;
+            step.hotspots.forEach(hs => {
+                if(hs.w > 0 && hs.h > 0) { htmlContent += `<div class="hotspot" style="left:${hs.x}%; top:${hs.y}%; width:${hs.w}%; height:${hs.h}%;"></div>`; }
+            });
+            htmlContent += `
+                </div>
+                <div class="desc-box">${step.desc ? step.desc : '설명 없음'}</div>
+            </div>`;
+        });
+
+        htmlContent += `<script>window.onload = function() { setTimeout(() => { window.print(); }, 500); }<\/script></body></html>`;
+        printWin.document.write(htmlContent);
+        printWin.document.close();
+    }
+
+    function exportHTML() {
+        if(steps.length === 0) { alert("사진을 먼저 올려주세요!"); return; }
+        const title = titleInput.value.trim() || '업무포털 맞춤형 가이드';
+        
+        const viewerHTML = `
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${title}</title>
+<style>
+    body { margin:0; display:flex; height:100vh; font-family:'Malgun Gothic', sans-serif; background:#f4f5f7; overflow:hidden; }
+    #main { flex:1; display:flex; justify-content:center; align-items:center; background:#222; position:relative; overflow:hidden; padding:20px; cursor:pointer; }
+    #wrap { position:relative; max-height:100%; display:flex; justify-content:center; align-items:center; transition: width 0.3s ease; }
+    img { width:100%; height:auto; max-height:100%; display:block; box-shadow:0 10px 30px rgba(0,0,0,0.5); border-radius:4px; }
+    .hotspot { position:absolute; border:4px solid #FF4444; background:rgba(255,68,68,0.2); animation:pulse 1.5s infinite; cursor:pointer; border-radius:4px; box-sizing:border-box; }
+    @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(255,68,68,0.6)} 70%{box-shadow:0 0 0 15px rgba(255,68,68,0)} 100%{box-shadow:0 0 0 0 rgba(255,68,68,0)} }
+    #panel { width:320px; min-width:320px; background:white; padding:30px; box-shadow:-2px 0 15px rgba(0,0,0,0.15); z-index:10; display:flex; flex-direction:column; }
+    #desc { color:#222; line-height:1.6; font-size:16px; margin-top:0; flex:1; white-space:pre-wrap; }
+    #nav-buttons { display:flex; gap:10px; margin-top:auto; margin-bottom:20px; }
+    #nav-buttons button { flex:1; padding:12px; border:none; border-radius:4px; font-weight:bold; cursor:pointer; font-size:14px; transition:0.2s; }
+    #btn-prev { background:#e2e6ea; color:#333; }
+    #btn-prev:hover { background:#d6d8db; }
+    #btn-next { background:#007BFF; color:white; }
+    #btn-next:hover { background:#0056b3; }
+    #progress-bar { height:4px; background:#eee; border-radius:2px; overflow:hidden; }
+    #progress-fill { height:100%; background:#007BFF; width:0%; transition:0.3s; }
+</style>
+</head>
+<body>
+    <div id="main">
+        <div id="wrap">
+            <img id="bg">
+            <div id="hotspot-layer" style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none;"></div>
+        </div>
+    </div>
+    <div id="panel">
+        <div style="font-size:13px; font-weight:bold; color:#007BFF; margin-bottom:15px; letter-spacing:1px;" id="counter"></div>
+        <p id="desc"></p>
+        <div id="nav-buttons">
+            <button id="btn-prev" onclick="goPrev()">◀ 이전</button>
+            <button id="btn-next" onclick="goNext()">다음 ▶</button>
+        </div>
+        <div id="progress-bar"><div id="progress-fill"></div></div>
+    </div>
+<script>
+    const data = ${JSON.stringify(steps)};
+    let cur = 0;
+    const layer = document.getElementById('hotspot-layer');
+    const mainArea = document.getElementById('main');
+    
+    function load() {
+        const step = data[cur];
+        document.getElementById('bg').src = step.image;
+        document.getElementById('desc').innerText = step.desc;
+        document.getElementById('counter').innerText = "STEP " + (cur+1) + " / " + data.length;
+        document.getElementById('progress-fill').style.width = ((cur+1)/data.length*100) + '%';
+        document.getElementById('wrap').style.width = step.scale + '%';
+        
+        document.getElementById('btn-prev').style.opacity = cur === 0 ? '0.5' : '1';
+        document.getElementById('btn-prev').style.cursor = cur === 0 ? 'default' : 'pointer';
+        document.getElementById('btn-next').innerText = cur === data.length - 1 ? '완료 ✓' : '다음 ▶';
+        
+        layer.innerHTML = '';
+        step.hotspots.forEach(hs => {
+            const box = document.createElement('div');
+            box.className = 'hotspot';
+            box.style.left = hs.x + '%';
+            box.style.top = hs.y + '%';
+            box.style.width = hs.w + '%';
+            box.style.height = hs.h + '%';
+            box.style.pointerEvents = 'auto'; 
+            box.onclick = (e) => { e.stopPropagation(); goNext(); };
+            layer.appendChild(box);
+        });
+    }
+    
+    function goPrev() { if(cur > 0) { cur--; load(); } }
+    function goNext() { if(cur < data.length - 1) { cur++; load(); } else { alert("모든 가이드가 끝났습니다. 창을 닫아주세요."); } }
+    
+    mainArea.onmousemove = (e) => {
+        const rect = mainArea.getBoundingClientRect();
+        if(e.clientX < rect.left + rect.width * 0.1) {
+            mainArea.style.cursor = 'w-resize';
+            mainArea.title = "◀ 이전 단계로";
+        } else {
+            mainArea.style.cursor = 'pointer';
+            mainArea.title = "다음 단계로 ▶";
+        }
+    };
+
+    mainArea.onclick = (e) => { 
+        const rect = mainArea.getBoundingClientRect();
+        if(e.clientX < rect.left + rect.width * 0.1) { goPrev(); } 
+        else { goNext(); } 
+    };
+    
+    load();
+<\/script>
+</body>
+</html>`;
+
+        const blob = new Blob([viewerHTML], { type: 'text/html' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `${title}(웹용).html`;
+        link.click();
+    }
+</script>
+</body>
+</html>
